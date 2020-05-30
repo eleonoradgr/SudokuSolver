@@ -1,13 +1,14 @@
 //
 // Created by eleonora on 27/05/20.
 //
-#include "Sudoku.hpp"
+#include "SudokuSeq.h"
 
 int main(int argc, char* argv[]){
-    Sudoku prova;
-    std::string filename("../SudokuSolver/tests/sudoku_hard.txt");
+    SudokuSeq prova;
+    std::string filename("../SudokuSolver/tests/sudokuvh.txt");
 
     prova.init(filename);
-    prova.print();
+    std::cout << "------------------"<<std::endl;
+    prova.solve();
     return 0;
 }
