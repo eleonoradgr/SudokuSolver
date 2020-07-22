@@ -5,6 +5,8 @@
 #ifndef SPM_SUDOKUSEQ_H
 #define SPM_SUDOKUSEQ_H
 
+#include <deque>
+#include <stack>
 #include "Sudoku.hpp"
 
 
@@ -229,7 +231,239 @@ std::vector<int16_t> brute_fix(configuration &conf) {
     return result;
 }
 
-int one_step(configuration &conf) {
+int one_step_seq(configuration &starting_conf, configuration &solution_conf) {
+    int found = 0;
+    configuration *copy = new configuration(starting_conf);
+    std::deque<configuration *> test_conf;
+    test_conf.push_back(copy);
+    while (!found && !test_conf.empty()) {
+        configuration *conf = test_conf.front();
+        test_conf.pop_front();
+        while (!found) {
+            int new_fixed = 1;
+            while (new_fixed > 0) {
+                new_fixed = fix_valid_values(*conf);
+            }
+            if (new_fixed == -1) {
+                delete conf;
+                break;
+            }
+            if (new_fixed == -2) {
+                found++;
+                solution_conf=*conf;
+                delete conf;
+                while(!test_conf.empty()){
+                    configuration *conf = test_conf.front();
+                    test_conf.pop_front();
+                    delete conf;
+                }
+            }
+
+            //TODO: sostituire il primo con elemento di minima scelta
+            if (new_fixed == 0) {
+                    std::vector<int16_t> min_choices = brute_fix(*conf);
+                    for (int choice = 3; choice < min_choices.size(); ++choice) {
+                        configuration *new_conf = new configuration(*conf);
+                        Sudoku::fix_value(min_choices[choice], min_choices[0], min_choices[1], *new_conf);
+                        test_conf.push_back(new_conf);
+                    }
+                    configuration *new_conf = new configuration(*conf);;
+                    Sudoku::fix_value(min_choices[2], min_choices[0], min_choices[1], *new_conf);
+                    delete conf;
+                    conf = new_conf;
+            }
+        }
+    }
+    return 1;
+}
+int basta(configuration &conf) {
+    int new_fixed = 1;
+    while (new_fixed > 0) {
+        new_fixed = fix_valid_values(conf);
+        /*if (new_fixed >= 0) {
+            int to_fix_for_unicity = fix_unique_values(conf);
+            new_fixed = (to_fix_for_unicity == -1) ? -1 : std::max(new_fixed, to_fix_for_unicity);
+        }*/
+    }
+    //if (new_fixed == -2) {
+    //    new_fixed = 1;
+    //}
+
+    //TODO: sostituire il primo con elemento di minima scelta
+    if (new_fixed == 0) {
+        new_fixed = -1;
+        std::vector<int16_t> min_choices = brute_fix(conf);
+        for (int choice = 2; choice < min_choices.size(); ++choice) {
+            configuration new_conf(conf);
+            Sudoku::fix_value(min_choices[choice], min_choices[0], min_choices[1], new_conf);
+            new_fixed = basta(new_conf);
+            if (new_fixed == -2) {
+                conf = new_conf;
+                break;
+            }
+        }
+    }
+    return new_fixed;
+}
+
+int one_step_seq2(configuration &starting_conf, configuration &solution_conf) {
+    int found = 0;
+    configuration *copy = new configuration(starting_conf);
+    std::vector<configuration *> test_conf;
+    test_conf.reserve(100 * 1024);
+    int index = 0;
+    test_conf.push_back(copy);
+    while (!found && !test_conf.empty()) {
+        configuration *conf = test_conf[index];
+        index++;
+        while (!found) {
+            int new_fixed = 1;
+            while (new_fixed > 0) {
+                new_fixed = fix_valid_values(*conf);
+            }
+            if (new_fixed == -1) {
+                delete conf;
+                break;
+            }
+            if (new_fixed == -2) {
+                found++;
+                solution_conf=*conf;
+                delete conf;
+                for (int j = index; j< test_conf.size(); ++j){
+                    delete test_conf[j];
+                }
+            }
+
+            //TODO: sostituire il primo con elemento di minima scelta
+            if (new_fixed == 0) {
+                if (test_conf.size()-index>320){
+                    new_fixed = basta(*conf);
+                    if (new_fixed == -1) {
+                        delete conf;
+                        break;
+                    }
+                    if (new_fixed == -2) {
+                        found++;
+                        starting_conf = *conf;
+                    }
+                }else{
+                    std::vector<int16_t> min_choices = brute_fix(*conf);
+                    for (int choice = 3; choice < min_choices.size(); ++choice) {
+                        configuration *new_conf = new configuration(*conf);
+                        Sudoku::fix_value(min_choices[choice], min_choices[0], min_choices[1], *new_conf);
+                        test_conf.push_back(new_conf);
+                    }
+                    configuration *new_conf = new configuration(*conf);;
+                    Sudoku::fix_value(min_choices[2], min_choices[0], min_choices[1], *new_conf);
+                    delete conf;
+                    conf = new_conf;
+                }
+
+            }
+        }
+    }
+    return 1;
+}
+
+int one_step_seq3(configuration &starting_conf, configuration &solution_conf) {
+    int found = 0;
+    configuration *copy = new configuration(starting_conf);
+    std::stack<configuration *> test_conf;
+    //test_conf.reserve(100 * 1024);
+    int index = 0;
+    test_conf.push(copy);
+    while (!found && !test_conf.empty()) {
+        configuration *conf = test_conf.top();
+        test_conf.pop();
+        index++;
+        while (!found) {
+            int new_fixed = 1;
+            while (new_fixed > 0) {
+                new_fixed = fix_valid_values(*conf);
+            }
+            if (new_fixed == -1) {
+                delete conf;
+                break;
+            }
+            if (new_fixed == -2) {
+                found++;
+                solution_conf=*conf;
+                delete conf;
+                while(!test_conf.empty()){
+                    delete test_conf.top();
+                    test_conf.pop();
+                }
+            }
+
+            //TODO: sostituire il primo con elemento di minima scelta
+            if (new_fixed == 0) {
+                if (test_conf.size()>320){
+                    new_fixed = basta(*conf);
+                    if (new_fixed == -1) {
+                        delete conf;
+                        break;
+                    }
+                    if (new_fixed == -2) {
+                        found++;
+                        starting_conf = *conf;
+                    }
+                }else{
+                    std::vector<int16_t> min_choices = brute_fix(*conf);
+                    for (int choice = 3; choice < min_choices.size(); ++choice) {
+                        configuration *new_conf = new configuration(*conf);
+                        Sudoku::fix_value(min_choices[choice], min_choices[0], min_choices[1], *new_conf);
+                        test_conf.push(new_conf);
+                    }
+                    configuration *new_conf = new configuration(*conf);;
+                    Sudoku::fix_value(min_choices[2], min_choices[0], min_choices[1], *new_conf);
+                    delete conf;
+                    conf = new_conf;
+                }
+
+            }
+        }
+    }
+    return 1;
+}
+
+configuration *one_step(configuration *conf) {
+    std::deque<configuration *> test_conf;
+    test_conf.push_back(conf);
+    int found = 0;
+    while (!test_conf.empty() && !found) {
+        configuration *c = test_conf.front();
+        test_conf.pop_front();
+        while (c != nullptr) {
+            int new_fixed = 1;
+            while (new_fixed > 0) {
+                new_fixed = fix_valid_values(*c);
+                /*if (new_fixed >= 0) {
+                    int to_fix_for_unicity = fix_unique_values(conf);
+                    new_fixed = (to_fix_for_unicity == -1) ? -1 : std::max(new_fixed, to_fix_for_unicity);
+                }*/
+            }
+            if (new_fixed == -2) {
+                return c;
+            }
+            if (new_fixed == -1) {
+                c = nullptr;
+            }
+            if (new_fixed == 0) {
+                std::vector<int16_t> min_choices = brute_fix(*c);
+                for (int choice = 3; choice < min_choices.size(); ++choice) {
+                    configuration new_conf(*conf);
+                    Sudoku::fix_value(min_choices[choice], min_choices[0], min_choices[1], new_conf);
+                    test_conf.push_back(&new_conf);
+                }
+                Sudoku::fix_value(min_choices[2], min_choices[0], min_choices[1], *c);
+            }
+        }
+
+    }
+    return nullptr;
+}
+
+int one_step_rec(configuration &conf) {
     int new_fixed = 1;
     while (new_fixed > 0) {
         new_fixed = fix_valid_values(conf);
@@ -242,14 +476,12 @@ int one_step(configuration &conf) {
         //starting_conf = conf;
         new_fixed = 1;
     }
-
-    //TODO: sostituire il primo con elemento di minima scelta
     if (new_fixed == 0) {
         std::vector<int16_t> min_choices = brute_fix(conf);
         for (int choice = 2; choice < min_choices.size(); ++choice) {
             configuration new_conf(conf);
             Sudoku::fix_value(min_choices[choice], min_choices[0], min_choices[1], new_conf);
-            new_fixed = one_step(new_conf);
+            new_fixed = one_step_rec(new_conf);
             if (new_fixed >= 0) {
                 conf = new_conf;
                 break;
@@ -279,7 +511,7 @@ std::vector<int16_t> brute_fix1(configuration &conf) {
                 for (int v = 0; v < DIM; ++v) {
                     availables_tmp[v] = conf.rows_values[i][v] && conf.cols_values[j][v] &&
                                         conf.grids_values[i_subgrid + j_subgrid][v];
-                    if(availables_tmp[v]){
+                    if (availables_tmp[v]) {
                         value = v;
                     }
                 }
@@ -292,7 +524,7 @@ std::vector<int16_t> brute_fix1(configuration &conf) {
                         min = 2;
                         break;
                     case 1:
-                        Sudoku::fix_value(value+1, i, j, conf);
+                        Sudoku::fix_value(value + 1, i, j, conf);
                         missing--;
                         break;
                     default:
@@ -310,13 +542,13 @@ std::vector<int16_t> brute_fix1(configuration &conf) {
                 break;
             }
         }
-        if (min == 2 || row == -1){
+        if (min == 2 || row == -1) {
             break;
         } // best case we can find
 
 
     }
-    if (missing == 0){
+    if (missing == 0) {
         row = -2;
         col = -2;
     }
@@ -332,7 +564,6 @@ std::vector<int16_t> brute_fix1(configuration &conf) {
 }
 
 int one_step1(configuration &conf) {
-
     int result = 0;
     std::vector<int16_t> min_choices = brute_fix1(conf);
     if (min_choices[1] == -1) {
@@ -340,10 +571,10 @@ int one_step1(configuration &conf) {
     } else {
         if (min_choices[1] == -2) {
             result = -2;
-        }else{
+        } else {
             for (int choice = 2; choice < min_choices.size(); ++choice) {
                 configuration new_conf(conf);
-                if (Sudoku::fix_value(min_choices[choice], min_choices[0], min_choices[1], new_conf) == 1){
+                if (Sudoku::fix_value(min_choices[choice], min_choices[0], min_choices[1], new_conf) == 1) {
                     result = one_step1(new_conf);
                     if (result == -2) {
                         conf = new_conf;
@@ -358,12 +589,16 @@ int one_step1(configuration &conf) {
 
 
 void seq_solve(Sudoku &sudoku) {
-    configuration *copy = new configuration(sudoku.starting_conf);
-    one_step(*copy);
-    std::cout << "THE END" << std::endl;
-    sudoku.solution= *copy;
-    delete copy;
-    Sudoku::print(sudoku.solution);
+    //one_step_seq2(sudoku.starting_conf,sudoku.solution);
+    one_step_seq3(sudoku.starting_conf,sudoku.solution);
+    //sudoku.print(sudoku.solution);
+    //configuration *copy = new configuration(sudoku.starting_conf);
+    //one_step_rec(*copy);
+    //copy = one_step(copy);
+    //sudoku.solution = *copy;
+    //std::cout << "THE END" << std::endl;
+    //delete copy;
+    //Sudoku::print(sudoku.solution);
 }
 
 

@@ -4,13 +4,12 @@
 #ifndef SPM_SUDOKUPT_H
 #define SPM_SUDOKUPT_H
 
-#define NUM_THREAD 4
+#define NUM_THREAD 32
 
 #include <thread>
 #include <atomic>
 #include "Sudoku.hpp"
 #include "utils/nbQueue.h"
-
 
 
 int fix_valid_values_pt(configuration &conf) {
@@ -55,11 +54,11 @@ int fix_valid_values_pt(configuration &conf) {
             break;
         }
     }
-    if (complete == 0)
+    if (complete == 0){
         result = -2;
+    }
     return result;
 }
-
 
 
 /*std::vector<std::pair<int16_t, int16_t>> check_rows1(int16_t value, configuration &conf) {
@@ -191,7 +190,7 @@ int fix_unique_values(configuration &conf) {
     return result;
 }*/
 
-std::vector<int16_t> brute_fix_pt(configuration &conf){
+std::vector<int16_t> brute_fix_pt(configuration &conf) {
     std::vector<int16_t> result;
     int row = 0;
     int col = 0;
@@ -251,6 +250,7 @@ int one_step_seq(configuration &conf) {
 
     //TODO: sostituire il primo con elemento di minima scelta
     if (new_fixed == 0) {
+        new_fixed = -1;
         std::vector<int16_t> min_choices = brute_fix_pt(conf);
         for (int choice = 2; choice < min_choices.size(); ++choice) {
             configuration new_conf(conf);
@@ -268,9 +268,8 @@ int one_step_seq(configuration &conf) {
 int one_step_pt(configuration &starting_conf, nbQueue<configuration> &test_conf, std::atomic<int> &found, int i) {
     while (!found.load()) {
         configuration *conf = test_conf.pop(i);
-        if (conf == nullptr){
-            break;
-        }else{
+        if (conf != nullptr) {
+            int sol = 0;
             while (!found.load()) {
                 int new_fixed = 1;
                 while (new_fixed > 0) {
@@ -281,49 +280,52 @@ int one_step_pt(configuration &starting_conf, nbQueue<configuration> &test_conf,
                     }*/
                 }
                 if (new_fixed == -1) {
-                    //delete conf;
+                    delete conf;
                     break;
                 }
                 if (new_fixed == -2) {
                     found++;
                     starting_conf = *conf;
-                    new_fixed = 1;
+                    sol++;
                 }
 
                 //TODO: sostituire il primo con elemento di minima scelta
                 if (new_fixed == 0) {
-                    //int prova = test_conf._cazzo();
-                    /*if (prova > 10*NUM_THREAD){
+                    int prova = test_conf.getValues();
+                    if (prova > 10 * NUM_THREAD) {
                         new_fixed = one_step_seq(*conf);
+                        if (new_fixed == -1) {
+                            delete conf;
+                            break;
+                        }
                         if (new_fixed == -2) {
                             found++;
                             starting_conf = *conf;
+                            sol++;
                         }
-                    }else{*/
-                    std::vector<int16_t> min_choices = brute_fix_pt(*conf);
-                    for (int choice = 3; choice < min_choices.size(); ++choice) {
-                        configuration *new_conf = new configuration(*conf);
-                        Sudoku::fix_value(min_choices[choice], min_choices[0], min_choices[1], *new_conf);
-                        test_conf.push(new_conf, i);
-                        if ( found.load()) {
-                            break;
+                    } else {
+                        std::vector<int16_t> min_choices = brute_fix_pt(*conf);
+                        for (int choice = 3; choice < min_choices.size(); ++choice) {
+                            configuration *new_conf = new configuration(*conf);
+                            Sudoku::fix_value(min_choices[choice], min_choices[0], min_choices[1], *new_conf);
+                            test_conf.push(new_conf, i);
+                            if (found.load()) {
+                                break;
+                            }
                         }
+                        configuration *new_conf = new configuration(*conf);;
+                        Sudoku::fix_value(min_choices[2], min_choices[0], min_choices[1], *new_conf);
+                        delete conf;
+                        conf = new_conf;
                     }
-                    configuration *new_conf = new configuration(*conf);;
-                    Sudoku::fix_value(min_choices[2], min_choices[0], min_choices[1], *new_conf);
-                    //delete conf;
-                    conf = new_conf;
-                    // }
                 }
             }
-            //delete conf;
+            //if (sol != 1) { delete conf; }
         }
 
     }
-
     return 1;
 }
-
 
 
 /*
@@ -365,15 +367,21 @@ int one_step1(configuration &starting_conf, nbQueue<configuration> &test_conf, s
 }
 */
 
-void parallel_pt_solve (Sudoku &sudoku){
-    nbQueue<configuration> test_conf(NUM_THREAD, NUM_THREAD);
+void parallel_pt_solve(Sudoku &sudoku, int n) {
+    nbQueue<configuration> test_conf(n, n);
     configuration *copy = new configuration(sudoku.starting_conf);
-    test_conf.push(copy, NUM_THREAD);
+    int limit_nw = n-1;
+    if (n == 1)
+        limit_nw++;
+    test_conf.push(copy, n-1);
     std::vector<std::thread> tid;
     std::atomic<int> found(0);
-    tid.reserve(NUM_THREAD);
-    for (int i = 0; i < NUM_THREAD; ++i) {
+    tid.reserve(limit_nw);
+    for (int i = 0; i < limit_nw; ++i) {
         tid.push_back(std::thread(one_step_pt, std::ref(sudoku.solution), std::ref(test_conf), std::ref(found), i));
+    }
+    if (n > 1){
+        one_step_pt( std::ref(sudoku.solution), std::ref(test_conf), std::ref(found), n-1);
     }
     for (auto &t : tid)
         t.join();

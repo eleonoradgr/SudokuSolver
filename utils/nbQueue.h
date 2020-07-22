@@ -26,10 +26,10 @@ template<class T>
 class nbQueue {
 public:
     nbQueue(uint8_t _readers, uint8_t _writers) : readers(_readers), writers(_writers),
-                                                                head_(0),
-                                                                tail_(0),
-                                                                last_head_(0),
-                                                                last_tail_(0) {
+                                                  head_(0),
+                                                  tail_(0),
+                                                  last_head_(0),
+                                                  last_tail_(0) {
         auto n = std::max(_readers, _writers);
         thr_p_.reserve(n);
 
@@ -47,7 +47,6 @@ public:
                 delete ptr_array_[tail_ & Q_MASK];
                 tail_++;
             }
-            //delete ptr_array_[tail_ & Q_MASK];
             assert((head_ & Q_MASK)== (tail_&Q_MASK));
         }
     }
@@ -59,15 +58,17 @@ public:
 
         //tp.head = head_.load();
         //tp.head = head_.fetch_add(1,  std::memory_order_seq_cst);
-
-        tp.head = head_;
-        tp.head = __sync_fetch_and_add(&head_, 1);
-
+        //if (tp.head == ULLONG_MAX) {
+            tp.head = head_;
+            tp.head = __sync_fetch_and_add(&head_, 1);
+        //}
         /*
          * We do not know when a consumer uses the pop()'ed pointer,
          * se we can not overwrite it and have to wait the lowest tail.
          */
-        while (__builtin_expect(tp.head >= last_tail_ + Q_SIZE, 0)) {
+        int attempts = 100;
+        while (__builtin_expect(tp.head >= last_tail_ + Q_SIZE && attempts >0 , 0)) {
+            attempts--;
             auto min = tail_;
 
             // Update the last_tail_.
@@ -87,10 +88,12 @@ public:
             ::sched_yield();
         }
 
-        ptr_array_[tp.head & Q_MASK] = ptr;
+        if (__builtin_expect(attempts>0,1)){
+            ptr_array_[tp.head & Q_MASK] = ptr;
+            // Allow consumers eat the item.
+            tp.head = ULLONG_MAX;
+        }
 
-        // Allow consumers eat the item.
-        tp.head = ULLONG_MAX;
     }
 
 
@@ -98,12 +101,16 @@ public:
     pop(uint8_t index) {
         assert(index < std::max(readers, writers));
         ThrPos &tp = thr_p_[index];
-        /*
-         * Loads and stores are not reordered with locked instructions,
-         * se we don't need a memory barrier here.
-         */
-        tp.tail = tail_;
-        tp.tail = __sync_fetch_and_add(&tail_, 1);
+
+        if (tp.tail == ULLONG_MAX){
+            /*
+        * Loads and stores are not reordered with locked instructions,
+        * se we don't need a memory barrier here.
+        */
+            tp.tail = tail_;
+            tp.tail = __sync_fetch_and_add(&tail_, 1);
+
+        }
 
         /*
          * last_head_ guaraties that no any consumer eats the item
@@ -140,12 +147,11 @@ public:
             tp.tail = ULLONG_MAX;
         }
 
-
         return ret;
     }
 
 
-    int _cazzo(){
+    int getValues(){
         unsigned long tmp_head = head_;
         unsigned long tmp_tail = tail_;
         return (tmp_head - tmp_tail);

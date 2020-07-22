@@ -4,7 +4,7 @@
 
 #ifndef SPM_SUDOKUFF_H
 #define SPM_SUDOKUFF_H
-#define NUM_THREAD_FF 6
+#define NUM_THREAD_FF 32
 
 #include "SudokuPT.h"
 #include <ff/ff.hpp>
@@ -70,7 +70,7 @@ struct Emitter: ff_monode_t<Task> {
             int victim = selectReadyWorker(); // get a ready worker
             while (victim > 0){
                 if (! eos_received && data.size()>0 && victim > 0) {
-                    if (data.size() >= 10*NUM_THREAD)
+                    if (data.size() >= 20*NUM_THREAD)
                         data.back()->solution= true;
                     ff_send_out_to(data.back(), victim);
                     data.pop_back();
@@ -185,9 +185,9 @@ struct Worker: ff_monode_t<Task> {
 };
 
 
-void parallel_ff_solve (Sudoku &sudoku){
+void parallel_ff_solve (Sudoku &sudoku, int n){
 
-    const size_t nworkers = NUM_THREAD_FF;
+    const size_t nworkers = n-1;
     configuration * starting_c = new configuration(sudoku.starting_conf);
     Emitter emitter(starting_c);
 
@@ -206,7 +206,7 @@ void parallel_ff_solve (Sudoku &sudoku){
         error("running farm");
     }
     ffTime(STOP_TIME);
-    Sudoku::print(*(emitter.solution));
+    //Sudoku::print(*(emitter.solution));
     //delete starting_c;
     std::cout << "Time: " << ffTime(GET_TIME) << "\n";
 };

@@ -14,8 +14,6 @@
 
 #define DIM 9
 #define DIM_SUBGRID 3
-#define DEFAULT_VALUE 0
-#define DELIMITER ","
 
 
 struct configuration{
@@ -100,7 +98,6 @@ int Sudoku::fix_value(int16_t value,int i, int j, configuration &conf){
         result = 1;
     }
     return result;
-
 }
 
 
