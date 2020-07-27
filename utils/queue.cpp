@@ -19,11 +19,13 @@ class syque
 private:
   std::mutex              d_mutex;
   std::condition_variable d_condition;
-  std::deque<T>           d_queue;
+    std::atomic<bool>       dismiss;
+    std::deque<T>           d_queue;
 public:
 
-  syque(std::string s) { std::cout << "Created " << s << " queue " << std::endl;  }
-  syque() {}
+  syque() {
+      dismiss = false;
+  }
 
   ~syque() {
       while(!d_queue.empty()){
@@ -43,14 +45,22 @@ public:
   
   T pop() {
     std::unique_lock<std::mutex> lock(this->d_mutex);
-    this->d_condition.wait(lock, [=]{ return !this->d_queue.empty(); });
-    T rc(std::move(this->d_queue.back()));
-    this->d_queue.pop_back();
+    this->d_condition.wait(lock, [=]{ return ((!this->d_queue.empty())|| this->dismiss); });
+    T rc = nullptr;
+    if (!this->dismiss) {
+        rc = std::move(this->d_queue.back());
+        this->d_queue.pop_back();
+    }
     return rc;
   }
 
   int getValues(){
      return d_queue.size();
+  }
+
+  void dismiss_stack(){
+      this->dismiss = true;
+      this->d_condition.notify_all();
   }
 };
 

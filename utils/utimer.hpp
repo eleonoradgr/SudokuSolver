@@ -40,8 +40,7 @@ public:
       std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
     auto nasecs =
             std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed).count();
-    std::cout << message << " computed in " << musec << " usec "
-	      << std::endl;
+    //std::cout << message << " computed in " << musec << " usec " << std::endl;
     if(us_elapsed != NULL)
       (*us_elapsed) += musec;
   }
